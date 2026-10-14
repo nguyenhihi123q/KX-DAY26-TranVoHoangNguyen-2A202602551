@@ -3,6 +3,14 @@ __pycache__/
 *.pyc
 venv/
 .env
+.tools/
+.uv-cache/
+releases/
+submission/
+LAB_CHECKPOINTS.md
+04-lab/mcp-client/verify_adk_session.py
+04-lab/mcp-client/verify_error_cases.py
+04-lab/mcp-client/verify_web_recovery.py
 **/.venv
 .adk/
 *.db

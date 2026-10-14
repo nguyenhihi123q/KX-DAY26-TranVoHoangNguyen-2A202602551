@@ -12,8 +12,6 @@ Cách chạy:
 from google import genai
 from google.genai import types
 
-client = genai.Client()
-
 MODEL = "gemini-2.5-flash"
 
 SYSTEM_INSTRUCTION = (
@@ -72,6 +70,7 @@ def get_weather(city: str) -> str:
 
 def run(prompt: str) -> str:
     """Gửi *prompt* tới Gemini, tự động xử lý function calling và trả về câu trả lời cuối."""
+    client = genai.Client()
     contents: list[types.Content] = [
         types.Content(role="user", parts=[types.Part.from_text(text=prompt)])
     ]

@@ -1,5 +1,13 @@
 # 01 — Function Calling thuần (Google Gemini SDK)
 
+## Demo qua proxy 9router
+
+`weather_proxy_function_calling.py` dùng cấu hình `04-lab/mcp-client/.env`,
+gọi model qua HTTP OpenAI-compatible và tự điều phối vòng lặp Function Calling.
+Chạy từ thư mục này bằng `../.venv/Scripts/python.exe weather_proxy_function_calling.py`.
+Hàm thời tiết vẫn là mock; demo này không dùng MCP hoặc ADK.
+Script SDK gốc vẫn dùng Gemini API key trực tiếp.
+
 Tool `get_weather` được **định nghĩa schema thủ công** và **thực thi ngay trong app**.
 Model chỉ quyết định gọi tool nào — app mới là nơi chạy.
 

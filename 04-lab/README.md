@@ -82,6 +82,48 @@ Open http://localhost:8000 in your browser, select `weather_agent`, and ask abou
 
 ## Configuration
 
+### Local PowerShell configuration
+
+You can store `WEATHERAPI_KEY` in `mcp-server/.env` (copy
+`mcp-server/.env.example`; never commit real keys). From the repository root,
+run `.\04-lab\mcp-server\start-server.ps1` to load this file through uv and
+start the server using Streamable HTTP. Running `weather.py` directly does
+not automatically load `.env`.
+
+To verify WeatherAPI credentials independently of MCP, run from the root:
+
+```powershell
+& .\04-lab\mcp-client\.venv\Scripts\python.exe .\04-lab\mcp-client\verify_weatherapi.py
+```
+
+The check requests current weather for Hanoi and a three-day forecast for
+Tokyo. It displays results without printing the API key or request URLs.
+
+After starting the server, verify the MCP protocol and all three tools:
+
+```powershell
+$env:PYTHONIOENCODING = "utf-8"
+& .\04-lab\mcp-client\.venv\Scripts\python.exe .\04-lab\mcp-client\verify_mcp_tools.py
+```
+
+This uses the client SDK v1 environment, performs initialize/discovery,
+checks health and real current weather, then verifies forecasts for 1, 2,
+and 3 days. A successful run ends with `ALL STAGE 3 MCP CHECKS PASSED`.
+
+### Error handling
+
+Blank cities and forecast days below 1 produce MCP errors. Requests above
+3 days return at most 3 with an explicit limit notice. WeatherAPI failures
+are translated to safe errors for unknown city, invalid/disabled key,
+quota, plan restrictions or network failure; key-bearing request URLs are
+not printed by the server.
+
+`health_check(reason="")` accepts an optional caller explanation and only
+confirms that MCP responds. It does not verify WeatherAPI access or long-term
+stability. The agent checks actual MCP initialize/discovery before each
+request, rejects unsupported tool arguments, and returns safe error messages
+instead of a tool-free fallback or a different model provider.
+
 | Variable | Where | Description |
 |----------|-------|-------------|
 | `WEATHERAPI_KEY` | mcp-server | API key from weatherapi.com |

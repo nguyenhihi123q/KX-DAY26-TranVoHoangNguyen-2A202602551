@@ -51,8 +51,12 @@ Client                                Server
 
 - Token hợp lệ → truy cập tool bình thường
 - Thiếu token → `401`
-- Token sai → `403`
+- Token sai → kiểm chứng với MCP 2.3.0 trong môi trường bài này trả `401`; ghi nhận status thực tế theo SDK/cấu hình.
 - Logic tool không biết gì về auth — SDK xử lý ở tầng transport
+
+Trên PowerShell có thể đặt `PORT` cho server và `MCP_SERVER_URL` cho client
+để đổi cổng đồng bộ; mặc định vẫn là `http://localhost:8000/mcp`.
+Tránh chạy server Auth và ADK Web đồng thời trên cùng cổng 8000.
 
 ---
 

@@ -1,5 +1,12 @@
 # Phân biệt MCP và Function Calling
 
+## Bài làm và ảnh bằng chứng
+
+Ảnh bằng chứng theo từng bước nằm trong [screenshots/](screenshots/README.md).
+Lab 04 dùng Gemini qua proxy 9router; hướng dẫn cấu hình nằm trong
+[README client](04-lab/mcp-client/README.md). Code ví dụ nền tảng và nội dung
+README gốc được giữ lại. Cloud Run là phần tùy chọn, bài làm chạy local.
+
 Đây là hai khái niệm hay bị nhầm lẫn nhưng thực ra ở **hai tầng khác nhau**, và **bổ sung cho nhau** chứ không thay thế.
 
 ## Cấu trúc repo

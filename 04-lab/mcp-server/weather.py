@@ -2,7 +2,11 @@ from typing import Any
 import asyncio
 import httpx
 import os
+import logging
 from mcp.server.fastmcp import FastMCP
+
+# WeatherAPI authenticates in the query string; avoid INFO request URL logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Initialize FastMCP server
 port = int(os.getenv("PORT", 8085))
@@ -15,18 +19,17 @@ USER_AGENT = "weather-app/1.0"
 # Get API key from environment variable
 API_KEY = os.getenv("WEATHERAPI_KEY")
 
-async def make_weather_request(endpoint: str, params: dict[str, str]) -> dict[str, Any] | None:
+async def make_weather_request(endpoint: str, params: dict[str, str]) -> dict[str, Any]:
     """Make a request to the WeatherAPI with proper error handling."""
     # Check if API key is set
     if not API_KEY:
-        print("ERROR: WeatherAPI key not set. Please set WEATHERAPI_KEY environment variable.")
-        return None
+        raise ValueError("WeatherAPI key not configured. Set WEATHERAPI_KEY before starting the server.")
         
     headers = {
         "User-Agent": USER_AGENT,
     }
     # Add API key to parameters
-    params["key"] = API_KEY
+    params = {**params, "key": API_KEY}
     
     url = f"{WEATHERAPI_BASE}/{endpoint}"
     
@@ -36,14 +39,23 @@ async def make_weather_request(endpoint: str, params: dict[str, str]) -> dict[st
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            print(f"HTTP Error {e.response.status_code}: {e.response.text}")
-            return None
-        except httpx.RequestError as e:
-            print(f"Request Error: {e}")
-            return None
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            return None
+            try:
+                code = e.response.json().get("error", {}).get("code")
+            except ValueError:
+                code = None
+            message = {
+                1006: "City not found. Check the city name.",
+                2006: "WeatherAPI key is invalid. Check server configuration.",
+                2007: "WeatherAPI quota exceeded. Try later or check the API plan.",
+                2008: "WeatherAPI key is disabled. Check server configuration.",
+                2009: "WeatherAPI plan does not allow this request.",
+            }.get(code, f"WeatherAPI returned HTTP {e.response.status_code}.")
+            raise ValueError(message) from None
+        except httpx.RequestError:
+            # Request exception text can include the key-bearing URL.
+            raise ValueError("WeatherAPI network request failed. Try again later.") from None
+        except ValueError:
+            raise ValueError("WeatherAPI returned an invalid JSON response.") from None
 
 @mcp.tool()
 async def get_current_weather(city: str) -> str:
@@ -53,10 +65,12 @@ async def get_current_weather(city: str) -> str:
         city: City name (e.g., "Hanoi", "Haiphong", "Danang", "Brisbane", "Sydney")
     """
     params = {
-        "q": city,
+        "q": city.strip(),
         "aqi": "no"
     }
     
+    if not city.strip():
+        raise ValueError("City cannot be blank.")
     data = await make_weather_request("current.json", params)
 
     if not data:
@@ -88,13 +102,18 @@ async def get_forecast(city: str, days: int = 3) -> str:
 
     Args:
         city: City name (e.g., "Hanoi", "Haiphong", "Danang", "Brisbane", "Sydney", "Melbourne")
-        days: Number of days to forecast (1-3 for free tier, max 10 for paid)
+        days: Number of forecast days. Must be positive; this lab returns at most 3.
     """
     # Limit days to 3 for free tier
+    if not city.strip():
+        raise ValueError("City cannot be blank.")
+    if days < 1:
+        raise ValueError("Forecast days must be at least 1; supported range is 1-3.")
+    requested_days = days
     days = min(days, 3)
     
     params = {
-        "q": city,
+        "q": city.strip(),
         "days": str(days),
         "aqi": "no",
         "alerts": "no"
@@ -112,6 +131,8 @@ async def get_forecast(city: str, days: int = 3) -> str:
     
     forecasts = []
     forecasts.append(f"Weather Forecast for {location['name']}, {location['region']}, {location['country']}:")
+    if requested_days > 3:
+        forecasts.append(f"Limit notice: requested {requested_days} days; this lab supports at most 3 days. Returning {len(forecast_days)} days.")
     
     for day in forecast_days:
         day_data = day["day"]
@@ -131,9 +152,13 @@ UV Index: {day_data['uv']}
     return "\n---\n".join(forecasts)
 
 @mcp.tool()
-async def health_check() -> str:
-    """Health check endpoint for deployment verification."""
-    return "✅ Weather MCP Server is running! Ready to provide weather data for Australian cities and worldwide."
+async def health_check(reason: str = "") -> str:
+    """Verify MCP responds. Does not check WeatherAPI access or long-term stability.
+
+    Args:
+        reason: Optional explanation supplied by the caller; no effect on the check.
+    """
+    return "✅ Weather MCP Server is running! MCP responded successfully. This check does not verify WeatherAPI credentials, upstream availability, or long-term stability."
 
 print("✅ MCP server initialized with Streamable HTTP transport")
 print("🔧 Available tools: get_current_weather, get_forecast, health_check")

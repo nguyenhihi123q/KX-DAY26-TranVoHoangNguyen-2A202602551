@@ -17,9 +17,17 @@ def check_environment():
         print("   Run: echo 'GOOGLE_API_KEY=your_key' > .env")
         return False
     
-    # Check if GOOGLE_API_KEY is set
+    # Check proxy credentials or direct Gemini credentials.
     from dotenv import load_dotenv
     load_dotenv()
+
+    if os.getenv("OPENAI_BASE_URL"):
+        if not os.getenv("OPENAI_API_KEY") or not os.getenv("PROXY_MODEL"):
+            print("❌ Configure OPENAI_API_KEY and PROXY_MODEL in .env")
+            return False
+        print(f"✅ Proxy configured: {os.getenv('OPENAI_BASE_URL')}")
+        print(f"   Model: {os.getenv('PROXY_MODEL')}")
+        return True
     
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key or api_key == "your_google_api_key_here":
@@ -27,7 +35,7 @@ def check_environment():
         print("   Get key from: https://aistudio.google.com/apikey")
         return False
     
-    print(f"✅ GOOGLE_API_KEY configured ({api_key[:10]}...)")
+    print("✅ GOOGLE_API_KEY configured")
     return True
 
 def check_dependencies():
@@ -41,6 +49,7 @@ def check_dependencies():
         ("fastmcp", "FastMCP"),
         ("dotenv", "python-dotenv"),
         ("httpx", "httpx"),
+        ("litellm", "LiteLLM proxy adapter"),
     ]
     
     all_installed = True
@@ -88,19 +97,28 @@ def check_mcp_server():
     server_url = os.getenv("MCP_SERVER_URL", "http://localhost:8085/mcp")
 
     try:
-        import httpx
+        import asyncio
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamablehttp_client
 
-        response = httpx.get(server_url, timeout=10.0)
-        # GET thuần lên endpoint MCP thường bị từ chối (400/405/406) vì thiếu
-        # header/session MCP — nhưng có phản hồi nghĩa là server đang chạy.
-        if response.status_code < 500:
-            print(f"✅ MCP server reachable at {server_url} (HTTP {response.status_code})")
-            return True
-        print(f"⚠️  MCP server returned status {response.status_code}")
-        return False
+        async def verify():
+            async with streamablehttp_client(server_url) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    names = {tool.name for tool in (await session.list_tools()).tools}
+                    expected = {"get_current_weather", "get_forecast", "health_check"}
+                    if not expected.issubset(names):
+                        raise ValueError("Missing weather tools")
+                    result = await session.call_tool("health_check", {})
+                    if result.isError:
+                        raise ValueError("Health tool failed")
+        asyncio.run(asyncio.wait_for(verify(), timeout=15))
+        print(f"✅ MCP initialized, tools discovered, health responded: {server_url}")
+        print("   WeatherAPI access requires a separate weather-tool check.")
+        return True
 
-    except Exception as e:
-        print(f"❌ Cannot reach MCP server at {server_url}: {e}")
+    except Exception:
+        print(f"❌ MCP initialization/discovery/health failed at {server_url}")
         print("   Start it: cd ../mcp-server && uv run python weather.py")
         return False
 
@@ -115,7 +133,7 @@ def check_agent_import():
         
         from weather_agent import root_agent
         print(f"✅ Agent imported successfully: {root_agent.name}")
-        print(f"   Model: {root_agent.model}")
+        print(f"   Model: {getattr(root_agent.model, 'model', root_agent.model)}")
         return True
     except Exception as e:
         print(f"❌ Failed to import agent: {e}")

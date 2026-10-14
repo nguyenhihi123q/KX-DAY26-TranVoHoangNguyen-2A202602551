@@ -36,6 +36,20 @@ AI agent built with **Google Agent Development Kit (ADK)** that uses tools from 
 
 ## Quick Start
 
+### 9router proxy (OpenAI-compatible)
+
+Copy `.env.example` to `.env` and set your local proxy key. The agent uses
+`LiteLlm` when `OPENAI_BASE_URL` is configured. `PROXY_MODEL` must match an ID
+returned by the proxy's `/v1/models` endpoint; the local setup uses
+`ag/gemini-3.8-flash` at `http://localhost:20128/v1`.
+
+Run `uv sync --locked`, start the MCP server, then run `uv run adk web`.
+With no `OPENAI_BASE_URL`, the agent uses direct Gemini and `GOOGLE_API_KEY`.
+Keep `.env` private; `.env.example` contains placeholders only.
+
+Run `uv run python verify_proxy.py` to verify the model returns a function call
+through the proxy without requiring WeatherAPI credentials or a running MCP server.
+
 ### 1. Start the MCP Server
 
 ```bash
@@ -116,17 +130,21 @@ root_agent = Agent(
    - Ensure the MCP server is running on port 8085
    - Check `MCP_SERVER_URL` (env var / `.env`, default `http://localhost:8085/mcp`)
 
-2. **405 errors**: Port conflict with another application
-   - Check what's running on the port: `lsof -i :8085`
-   - Change port in both server and client if needed
+2. **405 errors on a plain GET**: The endpoint may require MCP methods/headers
+   - Use `verify_setup.py` for real MCP initialize/discovery/health checks.
+   - A plain HTTP response does not prove the MCP protocol works.
 
 3. **Timeout errors**: Server not started
    - Start the MCP server first, then the ADK client
 
-### Fallback Mode
+### Safe failure handling
 
-If MCP connection fails, the agent runs in fallback mode without tools.
-Fix the connection and restart ADK web.
+The agent checks MCP initialize/discovery before each request. If unavailable,
+it returns a clear error rather than a tool-free fallback. Model/proxy failures
+return a safe configuration message without changing provider. Weather tool
+errors must not be turned into invented weather values.
+After changing Python code on Windows, restart ADK Web (reload is disabled).
+See `../README.md` for tool input validation and error handling.
 
 ## Environment Variables
 
